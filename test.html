@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+
+<body>
+    <script>
+        s = '<?xml version="1.0" encoding="UTF-8"?><SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/" xmlns:SOAP-ENC="http://schemas.xmlsoap.org/soap/encoding/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema"     xmlns:ns1="http://ispp.com.cn/ispp_npi/"><SOAP-ENV:Body><ns1:root><msg_head><time>20201204150324391</time><from>HLR</from><to>inphase</to><msg_type>2</msg_type><serial>4f8ce8be-64fa-450e-bc13-bbf59089da15</serial></msg_head><interface_msg><msg_response><ResponseClass Name="Response"><ResponseSubClass Name="SetPpcVolteResponse"><ResultCode>0000</ResultCode><ResultDescr>&#179;&#201;&#185;&#166;</ResultDescr></ResponseSubClass></ResponseClass></msg_response></interface_msg><a></a></ns1:root></SOAP-ENV:Body></SOAP-ENV:Envelope>'
+
+        function prettyXml(xml) {
+            xml = xml.replace(/&/gi, '&amp;');
+            var formatted = '';
+            xml = xml.replace(/></g, '>\r\n<');
+            //合并空结点到一行
+            xml = xml.replace(/<(.*?)(\s+.*?)?>[\s\r\n]+<\/\1>/gi, '<$1$2></$1>');
+
+            var pad = 0;    //缩进量
+            for (var node of xml.split(/[\r\n]+/)) {
+                if (node.match(/^\s*<[^/?][^<>]*?>/)) pad++;    //<a>  单独一行 pad++;
+
+                var padding = '';
+                for (var i = 0; i < pad; i++) {
+                    padding += '\t';
+                }
+
+                if (node.match(/<[/?][^<>]*?>\s*$/)) pad--;           //</a> 单独一行 pad--;
+
+                node = hColor(node);
+
+                var line = `${padding} ${node}\n`;
+
+                formatted += line;
+            }
+
+            window.console.log(formatted);
+            return formatted.replace(/\t/gi, '&nbsp;&nbsp;&nbsp;&nbsp;').replace(/[\r\n]+/g, '<br>\n');
+        }
+
+        function hColor(node) {
+            //console.log(1, node);
+            var ret = [];
+            var mc = node.match(/^(<)([^\s<>]+\s*)/);
+            ret.push(`<font color="green">&lt;${mc[2]}</font>`);
+            node = node.substring(mc.index + mc[0].length)
+
+            while (mc) {
+                var mc_key = node.match(/^([^><\s]+=)/)
+                if (mc_key) {
+                    ret.push(`<font color="#999">${mc_key[1]}</font>`);
+                    node = node.substring(mc_key.index + mc_key[0].length)
+
+                    var mc_val = node.match(/^([^><\s=?]+\s*)/)
+                    ret.push(`<font color="#ccc">${mc_val[1]}</font>`)
+                    node = node.substring(mc_val.index + mc_val[0].length)
+
+                    //console.log(`|${mc_key[1]}|${mc_val[1]}|${node}`)
+                } else break;
+            }
+            mc_val = node.match(/^([?]?>)/)
+            ret.push(`<font color="green">${mc_val[1]}</font>`)
+            node = node.substring(mc_val.index + mc_val[0].length)
+
+            mc_val = node.match(/^([^><]+\s*)/)
+            if (mc_val) {
+                ret.push(`<font color="#000">${mc_val[1]}</font>`)
+                node = node.substring(mc_val.index + mc_val[0].length)
+            }
+
+            mc_val = node.match(/^(<\/)(.*?)(>)/)
+            if (mc_val) {
+                ret.push(`<font color="green">&lt;${mc_val[2]}&gt;</font>`)
+                node = node.substring(mc_val.index + mc_val[0].length)
+            }
+
+            //console.log(2, ret.join(""));
+            return ret.join("");
+        }
+
+
+        s = prettyXml(s);
+        document.write(s);
+
+        //document.write(hColor(s));
+    </script>
+</body>
+
+</html>

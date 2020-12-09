@@ -11,15 +11,24 @@
     <script>
         s1 = '<?xml version="1.0" encoding="GBK"?> <CreateUserAck AttrType="CreateUserAck"> <SERIAL_NUMBER AttrType="String">2020120815061657469</SERIAL_NUMBER> <RESULT AttrType="String" >9002</RESULT> <DESC AttrType="String"/> </CreateUserAck>'
         s2 = '<?xml version="1.0" encoding="UTF-8"?><SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/" xmlns:SOAP-ENC="http://schemas.xmlsoap.org/soap/encoding/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema"     xmlns:ns1="http://ispp.com.cn/ispp_npi/"><SOAP-ENV:Body><ns1:root><msg_head><time>20201204150324391</time><from>HLR</from><to>inphase</to><msg_type>2</msg_type><serial>4f8ce8be-64fa-450e-bc13-bbf59089da15</serial></msg_head><interface_msg><msg_response><ResponseClass Name="Response"><ResponseSubClass Name="SetPpcVolteResponse"><ResultCode>0000</ResultCode><ResultDescr>&#179;&#201;&#185;&#166;</ResultDescr></ResponseSubClass></ResponseClass></msg_response></interface_msg><a></a></ns1:root></SOAP-ENV:Body></SOAP-ENV:Envelope>'
+        s3 = '<?xml version="1.0" encoding="UTF-8"?><soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><soapenv:Body><dispatchCommandResponse xmlns="http://control.ppcore.haobai.huateng.com"><out>&lt;?xml version=&quot;1.0&quot; encoding=&quot;UTF-8&quot;?&gt;&lt;PayPlatResponseParameter&gt;&lt;RESPONSE-INFO REQWEBSVRCODE=&quot;600100&quot; RESPONSETYPE=&quot;10&quot; KEEP=&quot;2020120915164757645&quot; RESULT=&quot;SUCCESS&quot;/&gt;&lt;RESPONSECODE&gt;000000&lt;/RESPONSECODE&gt;&lt;RESPONSECONTENT&gt;&#x901A;&#x4FE1;&#x72B6;&#x6001;&#x540C;&#x6B65;&#x6210;&#x529F;&lt;/RESPONSECONTENT&gt;&lt;/PayPlatResponseParameter&gt;</out></dispatchCommandResponse></soapenv:Body></soapenv:Envelope>'
+        s4 = '<?xml version="1.0" encoding="UTF-8"?><soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><soapenv:Body><dispatchCommandResponse xmlns="http://control.ppcore.haobai.huateng.com"><out><![CDATA[<?xml version="1.0" encoding="UTF-8"?><PayPlatResponseParameter><RESPONSE-INFO REQWEBSVRCODE="600100" RESPONSETYPE="10" KEEP="2020120915164757645" RESULT="SUCCESS"/><RESPONSECODE>000000</RESPONSECODE><RESPONSECONTENT>&#x901A;&#x4FE1;&#x72B6;&#x6001;&#x540C;&#x6B65;&#x6210;&#x529F;</RESPONSECONTENT></PayPlatResponseParameter>]]></out></dispatchCommandResponse></soapenv:Body></soapenv:Envelope>'
 
-        function prettyXml(xml) {
+        function prettyXml(xml, pad=0) {
             xml = xml.replace(/&/gi, '&amp;');
             var formatted = '';
+            var reCDATA = /<\!\[CDATA\[([\s\S]+?)\]\]>/g  //优化下 CDATA
+            var cDatas = [];
+            xml = xml.replace(reCDATA, m=>{
+                var v = m.replace(/^<\!\[CDATA\[/,"").replace(/\]\]>$/,'');
+                cDatas.push(v);
+                return `__CDATA__`;
+            });
+
             xml = xml.replace(/>[\s\r\n]*</g, '>\r\n<');
             //合并空结点到一行
             xml = xml.replace(/<(.*?)(\s+.*?)?>[\s\r\n]+<\/\1>/gi, '<$1$2></$1>');
 
-            var pad = 0;    //缩进量
             for (var node of xml.split(/[\r\n]+/)) {
                 if (node.match(/^\s*<[^/?][^<>]*?>/)) pad++;    //<a>  pad++;
 
@@ -28,58 +37,54 @@
                     padding += '\t';
                 }
 
-                if (node.match(/\/>$|<[/?][^<>]*?>\s*$/)) pad--;           //</a> pad--;
+                if (node.match(/([/?]>|<[/].*?>)\s*/)) pad--;           //</a> pad--;
 
-                node = hColor(node);
+                //node =node.replace(/</g,'&lt;');
+                node = hColor(node, cDatas);
 
                 var line = `${padding} ${node}\n`;
 
                 formatted += line;
             }
 
-            window.console.log(formatted);
+            //window.console.log(formatted);
             return formatted.replace(/\t/gi, '&nbsp;&nbsp;&nbsp;&nbsp;').replace(/[\r\n]+/g, '<br>\n');
         }
 
-        function hColor(node) {
-            //console.log(1, node);
+        function hColor(node, cDatas) {
+            //console.log(node);
             var ret = [];
-            var mc = node.match(/^(<)([^\s<>]+\s*)/);                    
-            ret.push(`<font color="green">&lt;${mc[2]}</font>`);                //高亮 <NodeName
-            node = node.substring(mc.index + mc[0].length)
 
-            while (mc) {
-                var mc_key = node.match(/^([^=]+=)/)                         
-                if (mc_key) {
-                    ret.push(`<font color="#999">${mc_key[1]}</font>`);         //高亮 k=
-                    node = node.substring(mc_key.index + mc_key[0].length)
+            var sReNode = "";
+            sReNode += "^\\s*(<[/?]?\\S+?)";
+            sReNode += "(\\s+[^><]+?)?";
+            sReNode += "([?/]*>)";
+            sReNode += "(?:(.*?)";
+            sReNode += "(<[/].*?>))?$";
 
-                    var mc_val = node.match(/^(.*?)[?/]?>/) 
-                    ret.push(`<font color="#ccc">${mc_val[1]}</font>`)          //高亮 v
-                    node = node.substring(mc_val.index + mc_val[1].length)
+            var reNode = new RegExp(sReNode, "g");
+            node = reNode.exec(node);
 
-                    //console.log(`|${mc_key[1]}|${mc_val[1]}|${node}`)
-                } else break;
-            }
-            mc_val = node.match(/^([?/]?>)/) 
-            ret.push(`<font color="green">${mc_val[1]}</font>`)                 //高亮  > ?>  />
-            node = node.substring(mc_val.index + mc_val[0].length)
-
-            mc_val = node.match(/^([^><]+\s*)/)                                 
-            if (mc_val) {
-                ret.push(`<font color="#000">${mc_val[1]}</font>`)              //高亮节点内容
-                node = node.substring(mc_val.index + mc_val[0].length)
-            }
-
-            mc_val = node.match(/^(<\/)(.*?)(>)/)
-            if (mc_val) {
-                ret.push(`<font color="green">&lt;${mc_val[2]}&gt;</font>`)     //高亮 </NodeName>
-                node = node.substring(mc_val.index + mc_val[0].length)
+            var tmp = '<font color="$1">$2</font>';
+            if (!!node) {
+                //console.log(node[1], node[2], node[3], node[4], node[5]);
+                ret.push(tmp.replace("$1", "green").replace("$2", node[1].replace("<", "&lt;")));
+                if (!!node[2]) ret.push(tmp.replace("$1", "#ccc").replace("$2", node[2]));
+                ret.push(tmp.replace("$1", "green").replace("$2", node[3]));
+                if (!!node[4]) { 
+                    if (node[4]=='__CDATA__') {
+                        ret.push(`&lt;![CDATA[${prettyXml(cDatas.pop()).replace(/[\r\n]+/g,'').replace(/&amp;/g,'&')}]]&gt;`);
+                    } else {
+                        ret.push(tmp.replace("$1", "#000").replace("$2", node[4]));
+                    }
+                }
+                if (!!node[5]) ret.push(tmp.replace("$1", "green").replace("$2", node[5].replace("<", "&lt;")));
             }
 
-            //console.log(2, ret.join(""));
             return ret.join("");
         }
+
+        document.write(new Date() + "<br>");
 
 
         s1 = prettyXml(s1);
@@ -87,6 +92,12 @@
 
         s2 = prettyXml(s2);
         document.write(s2);
+
+        s3 = prettyXml(s3);
+        document.write(s3);
+
+        s4 = prettyXml(s4);
+        document.write(s4);
 
         //document.write(hColor(s));
     </script>
